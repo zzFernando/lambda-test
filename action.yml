@@ -1,0 +1,66 @@
+name: "Create Repository with Lambda Template"
+description: "Creates a GitHub repository from a template with Lambda code and deployment workflows"
+inputs:
+  repo-name:
+    description: "The name of the new repository"
+    required: true
+  template-url:
+    description: "URL of the template repository"
+    required: true
+  org:
+    description: "Organization or username for the repository"
+    required: true
+  github-token:
+    description: "GitHub Token for authentication"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Extract Owner and Repo from Template URL
+      id: extract
+      shell: bash
+      run: |
+        template_url="${{ inputs.template-url }}"
+        owner_repo=$(echo "$template_url" | sed -E 's|https://github.com/([^/]+)/([^/]+)|\1 \2|')
+        echo "owner=$(echo $owner_repo | cut -d' ' -f1)" >> $GITHUB_ENV
+        echo "repo=$(echo $owner_repo | cut -d' ' -f2)" >> $GITHUB_ENV
+        echo "Template Owner: $(echo $owner_repo | cut -d' ' -f1)"
+        echo "Template Repo: $(echo $owner_repo | cut -d' ' -f2)"
+
+    - name: Create Repository from Template
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: |
+        response=$(curl -s -X POST \
+          -H "Authorization: token $GITHUB_TOKEN" \
+          -H "Accept: application/vnd.github.v3+json" \
+          https://api.github.com/repos/$owner/$repo/generate \
+          -d '{
+            "name": "'"${{ inputs.repo-name }}"'",
+            "owner": "'"${{ inputs.org }}"'",
+            "private": false
+          }')
+
+        echo "Response: $response"
+
+        repo_url=$(echo "$response" | jq -r '.html_url')
+        repo_id=$(echo "$response" | jq -r '.id')
+
+        if [ "$repo_url" == "null" ] || [ -z "$repo_url" ]; then
+          echo "Failed to extract repository URL. Response: $response"
+          exit 1
+        fi
+
+        echo "repo_url=$repo_url" >> $GITHUB_ENV
+        echo "repo_id=$repo_id" >> $GITHUB_ENV
+
+        echo "Repository URL: $repo_url"
+        echo "Repository ID: $repo_id"
+
+    - name: Output Repository Information
+      shell: bash
+      run: |
+        echo "Repository successfully created:"
+        echo "URL: $repo_url"
+        echo "ID: $repo_id"

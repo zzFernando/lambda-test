@@ -1,0 +1,19 @@
+name: JS Custom Action Example
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  exemplo-de-job:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v2
+
+      - name: Custom action
+        uses: zzfernando/custom-actions-poc@1.0.2
+        with:
+          who-to-greet: "World"
